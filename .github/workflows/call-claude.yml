@@ -26,7 +26,18 @@ jobs:
           curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://api.anthropic.com" \
             | jq -r .value > "$ANTHROPIC_IDENTITY_TOKEN_FILE"
-
+          - name: Check setup
+        run: |
+          missing=0
+          for v in ANTHROPIC_FEDERATION_RULE_ID ANTHROPIC_ORGANIZATION_ID ANTHROPIC_SERVICE_ACCOUNT_ID ANTHROPIC_WORKSPACE_ID; do
+            if [ -z "${!v}" ]; then echo "::error::Repo variable $v is not set"; missing=1; fi
+          done
+          if [ ! -s "$ANTHROPIC_IDENTITY_TOKEN_FILE" ] || [ "$(cat "$ANTHROPIC_IDENTITY_TOKEN_FILE")" = "null" ]; then
+            echo "::error::GitHub identity token was not fetched (check permissions: id-token: write)"; missing=1
+          else
+            echo "Token subject:"; cut -d. -f2 "$ANTHROPIC_IDENTITY_TOKEN_FILE" | tr '_-' '/+' | base64 -d 2>/dev/null | jq -r .sub
+          fi
+          exit $missing
       - name: Test call to Claude
         run: |
           pip install anthropic
